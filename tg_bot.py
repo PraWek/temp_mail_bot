@@ -1,10 +1,8 @@
-import asyncio
 import os
 import random
 import string
 import logging
 import html
-from aiohttp import web
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -21,7 +19,7 @@ users_db = {}
 
 if not BOT_TOKEN:
     logging.error("Переменная окружения BOT_TOKEN не задана!")
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=BOT_TOKEN or "dummy_token")
 dp = Dispatcher()
 
 
@@ -182,7 +180,6 @@ async def process_login_password(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     address = user_data["address"]
 
-    # Удаляем сообщение с паролем в целях безопасности (если бот имеет права)
     try:
         await message.delete()
     except Exception:
@@ -193,7 +190,6 @@ async def process_login_password(message: types.Message, state: FSMContext):
     token = await get_token(address, password)
 
     if token:
-        # Успешный вход
         users_db[message.from_user.id] = {"address": address, "token": token}
         await msg.edit_text(
             f"✅ <b>Вы успешно вошли в почту!</b>\n\n"
@@ -202,7 +198,6 @@ async def process_login_password(message: types.Message, state: FSMContext):
             reply_markup=main_menu()
         )
     else:
-        # Ошибка входа
         await msg.edit_text(
             "❌ <b>Неверный адрес или пароль.</b>\nПожалуйста, попробуйте снова.",
             parse_mode="HTML",
@@ -295,30 +290,3 @@ async def process_back(callback: types.CallbackQuery):
         "👋 Вы вернулись в главное меню.\n\nВыберите действие ниже:",
         reply_markup=main_menu()
     )
-
-
-# --- Интеграция с веб-сервером для Render ---
-
-async def health_check(request):
-    return web.Response(text="Bot is running 24/7!")
-
-
-async def main():
-    logging.basicConfig(level=logging.INFO)
-
-    app = web.Application()
-    app.router.add_get('/', health_check)
-
-    runner = web.AppRunner(app)
-    await runner.setup()
-
-    port = int(os.environ.get("PORT", 8080))
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    logging.info(f"Web server successfully started on port {port}")
-
-    await dp.start_polling(bot)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
